@@ -1,0 +1,12 @@
+# 观察池：每行一个 Yahoo Finance 代码，可选“逗号 + 基准代码”
+# 不写基准时默认用 SOXX（费城半导体 ETF）
+# 以 # 开头的行是注释，空行会被忽略
+MU
+SNDK
+SIVE.ST, ^OMX
+NVDA
+MSFT
+MRVL
+IBKR
+AAOI
+DRAM
