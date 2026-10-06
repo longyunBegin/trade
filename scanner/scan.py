@@ -188,6 +188,33 @@ def state_at(i: int, s: dict) -> dict:
                 struct_txt=struct_txt, rs_txt=rs_txt)
 
 
+MAX_GAPS = 10  # 与 Pine 的 maxGaps 默认值一致
+
+
+def unfilled_gaps(df: pd.DataFrame, max_gaps: int = MAX_GAPS) -> list[tuple[int, float, float, object]]:
+    """未回补跳空缺口（逐根移植自 position-risk-panel/panel.pine 第 6 部分）。
+
+    每根 K 线：先检查旧缺口是否被回补（向上缺口 low <= 缺口下沿；向下缺口 high >= 缺口上沿）并移除，
+    再记录新缺口（向上：low > 前高，上沿=low、下沿=前高；向下：high < 前低，上沿=前低、下沿=high），
+    只保留最近 max_gaps 个（超出时丢掉最早的）。返回 [(方向, 上沿, 下沿, 产生日期), ...]，按产生顺序。
+    """
+    hi, lo = df["High"].to_numpy(float), df["Low"].to_numpy(float)
+    dates = list(df.index)
+    gaps: list[tuple[int, float, float, object]] = []
+    for i in range(len(df)):
+        if gaps:
+            gaps = [g for g in gaps if not (lo[i] <= g[2] if g[0] == 1 else hi[i] >= g[1])]
+        if i == 0:
+            continue
+        if lo[i] > hi[i - 1]:
+            gaps.append((1, lo[i], hi[i - 1], dates[i]))
+        elif hi[i] < lo[i - 1]:
+            gaps.append((-1, lo[i - 1], hi[i], dates[i]))
+        if len(gaps) > max_gaps:
+            gaps.pop(0)
+    return gaps
+
+
 def compute(symbol: str, df: pd.DataFrame, bench_close: pd.Series | None, bench: str) -> Result:
     r = Result(symbol=symbol, bench=bench)
     n = len(df)
@@ -269,6 +296,13 @@ def compute(symbol: str, df: pd.DataFrame, bench_close: pd.Series | None, bench:
     r.v = dict(cur, chg=chg, vol_ratio=vol_ratio, atr=a, hh=hh_i, ll=ll_i, d20p=d20p, d20a=d20a, d50p=d50p,
                d50a=d50a, pos52=pos52, n52=n52, ud=ud, atr_rank=atr_rank, stop=stop, stop_src=stop_src,
                risk=risk, target=target, is_breakout=is_breakout, rr=rr)
+
+    # 未回补缺口：最近的上方缺口（下沿 > 收盘中最小的下沿）、最近的下方缺口（上沿 < 收盘中最大的上沿）
+    gaps = unfilled_gaps(df)
+    above = [g[2] for g in gaps if g[2] > c]
+    below = [g[1] for g in gaps if g[1] < c]
+    r.v.update(gaps=gaps, gap_n=len(gaps), gap_above=min(above) if above else float("nan"),
+               gap_below=max(below) if below else float("nan"))
 
     # 数据不足提示（Pine 中对应值为 na，均线位置/排列会落到“夹在均线间/均线纠缠”）
     if n < MA_SLOW:
@@ -369,17 +403,26 @@ def rows_trend(r: Result) -> list[str]:
             f"{fp(v['ll'])} / {fp(v['hh'])}", r.date]
 
 
+def gap_txt(v) -> str:
+    """与 Pine 表格一致：N 个；上方最近 X，下方最近 Y（没有缺口时为“无”）。"""
+    if not v.get("gap_n"):
+        return "无"
+    up = "无" if nan(v["gap_above"]) else fp(v["gap_above"])
+    dn = "无" if nan(v["gap_below"]) else fp(v["gap_below"])
+    return f"{v['gap_n']} 个；上方最近 {up}，下方最近 {dn}"
+
+
 def rows_risk(r: Result) -> list[str]:
     if not r.ok:
-        return [r.symbol, "数据缺失"] + ["—"] * 8
+        return [r.symbol, "数据缺失"] + ["—"] * 9
     v = r.v
     return [r.symbol, fp(v["atr"]), dist_txt(v["d20p"], v["d20a"]), dist_txt(v["d50p"], v["d50a"]),
             pos52_txt(v["pos52"]), ud_txt(v["ud"]), atr_rank_txt(v["atr_rank"]), stop_txt(v), target_txt(v),
-            rr_txt(v["rr"])]
+            rr_txt(v["rr"]), gap_txt(v)]
 
 
 TREND_HEAD = ["代码", "收盘", "涨跌", "均线位置", "排列", "结构", "量能", "相对强弱", "近低 / 近高", "数据日期"]
-RISK_HEAD = ["代码", "ATR14", "离MA20", "离MA50", "一年位置", "涨/跌量比", "ATR分位", "止损", "目标", "风险收益比"]
+RISK_HEAD = ["代码", "ATR14", "离MA20", "离MA50", "一年位置", "涨/跌量比", "ATR分位", "止损", "目标", "风险收益比", "未补缺口"]
 
 
 def md_table(head, rows) -> str:
@@ -409,7 +452,8 @@ def build_markdown(results: list[Result], data_date: str) -> str:
     if notes:
         out += ["", "数据不足：" + "；".join(notes) + "（与 Pine 一样，缺的均线按 na 处理）"]
     out += ["", "读法：结构 = 收盘对比前 20 根最高/最低；量能 = 当日量 / 20 日均量；相对强弱 = 收盘/基准 对比其 20 日均线；"
-            "离均线括号内为 ATR 倍数（≥3 偏离大，≤1 贴近）；止损 = max(20 根最低, 收盘 − 2×ATR)；目标 = 20 根最高（已突破则按 2R）。",
+            "离均线括号内为 ATR 倍数（≥3 偏离大，≤1 贴近）；止损 = max(20 根最低, 收盘 − 2×ATR)；目标 = 20 根最高（已突破则按 2R）；"
+            "未补缺口 = 最近 10 个未回补跳空缺口的个数，及收盘上方 / 下方最近的缺口边沿。",
             "", "> 不构成投资建议。仅为固定公式的机械计算结果，数据可能有延迟或错误。", ""]
     return "\n".join(out)
 
@@ -547,6 +591,7 @@ def _detail_card(r: Result, data_date: str, compact: bool = False) -> str:
         ("ATR14", fp(v["atr"])),
         ("涨跌量比", e(ud_txt(v["ud"]).replace(" ", " · "))),
         ("ATR 分位", e(atr_rank_txt(v["atr_rank"]).replace(" ", " · "))),
+        ("未补缺口", e(gap_short(v))),
     ]
     lst = "".join(
         f'<tr><td class="gy" style="padding:5px 0;color:{C_GREY};white-space:nowrap;">{k}</td>'
@@ -558,6 +603,16 @@ def _detail_card(r: Result, data_date: str, compact: bool = False) -> str:
     return (f'{T} {CARD}><tr><td style="padding:18px 20px 14px;">{head}{hero}'
             f'{T} style="margin-top:10px;font-size:14px;line-height:19px;">{lst}</table>{note}'
             f'</td></tr></table>')
+
+
+def gap_short(v) -> str:
+    """邮件里一行放得下的写法：3 个 · 上 1,108.72 · 下 902.60（没有则“无”）。"""
+    if not v.get("gap_n"):
+        return "无"
+    parts = [f"{v['gap_n']} 个"]
+    parts.append("上 " + ("无" if nan(v["gap_above"]) else fp(v["gap_above"])))
+    parts.append("下 " + ("无" if nan(v["gap_below"]) else fp(v["gap_below"])))
+    return " · ".join(parts)
 
 
 MAX_HTML_BYTES = 95_000  # Gmail 超过约 102KB 会折叠邮件，留出余量
