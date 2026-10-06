@@ -11,7 +11,7 @@
 
 ## 自动化
 
-- [观察池日报](./scanner/)：每个交易日北京时间 06:15 自动扫描 [`watchlist.txt`](./watchlist.txt)，用与上面两个指标相同的固定公式（无 AI）生成 [`scan.md`](./scan.md) 并发邮件
+- [观察池日报](./scanner/)：每个美股交易日后的北京时间 09:45 自动扫描 [`watchlist.txt`](./watchlist.txt)，用与上面两个指标相同的固定公式（无 AI）生成 [`scan.md`](./scan.md) 并发邮件
 
 ## 想法
 
