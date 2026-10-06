@@ -16,6 +16,7 @@
 ## 想法
 
 - `ideas/`：交易观点与想法
+- [Sivers Semiconductors（SIVE）第一性原理基本面拆解](./ideas/sive-fundamentals.md)：收入→利润率→现金→护城河→风险→现价反推（2026-10-07）
 
 ---
 仅为个人记录与分享，不构成投资建议。
