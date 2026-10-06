@@ -180,5 +180,9 @@
 - [S19] MFN Sivers 新闻列表（2026-10-07 约 00:10 北京时间抓取）：https://mfn.se/all/a/sivers-semiconductors
 - [S20] PR 高管变动（2026-09-24）：https://mfn.se/cis/a/sivers-semiconductors/sivers-semiconductors-makes-changes-to-senior-leadership-team-for-next-phase-of-commercial-growth-a24ee907
 
+## 延伸
+
+- 与 X 分析师 Serenity（@aleabitoreddit）的 SIVE 建模逐步对照：[sive-serenity-comparison.md](./sive-serenity-comparison.md)
+
 ---
 仅为个人记录与分享，不构成投资建议。
