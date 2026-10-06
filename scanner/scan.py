@@ -415,21 +415,39 @@ def build_markdown(results: list[Result], data_date: str) -> str:
 
 
 # ---------------------------------------------------------------------
-# 邮件 HTML（Apple 风格：留白、白色圆角卡片、克制配色、胶囊标签）
-# 只用表格布局 + 内联样式，兼容 Gmail 网页 / Gmail App / iOS 邮件
+# 邮件 HTML —— useLayouts 风格（uselayouts.com）：
+#   暖米白底 #f5f3ee、深海军蓝文字 #071a31、细边框白色圆角卡片 + 内嵌“媒体”色块、
+#   海军蓝→蓝→淡紫/蜜桃渐变头图、Bento 不等宽小格、等宽字体大写小标签、彩色计数胶囊。
+# 只用表格布局 + 内联样式（渐变都带纯色兜底），兼容 Gmail 网页 / Gmail App / iOS 邮件。
 # ---------------------------------------------------------------------
-FONT = ("-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Helvetica Neue',"
+FONT = ("Geist,-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',"
         "'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif")
-MONO = "'SF Mono',ui-monospace,Menlo,Consolas,'Courier New',monospace"
-C_TEXT, C_SUB, C_MUTED, C_LINE, C_PAGE = "#1d1d1f", "#6e6e73", "#86868b", "#e8e8ed", "#f5f5f7"
-C_ACCENT = "#0071e3"
-TONES = {  # 文字色, 底色, 暗色模式 class
-    "up": ("#c9342c", "#fdf0ef", "p-up"),        # 红涨
-    "down": ("#1f8a4c", "#eaf6ee", "p-dn"),      # 绿跌
-    "accent": ("#0066cc", "#e9f2fd", "p-ac"),
-    "warn": ("#b25000", "#fff3e3", "p-wn"),
-    "flat": ("#6e6e73", "#f0f0f3", "p-fl"),
-}
+MONO = "ui-monospace,Menlo,monospace"
+# 取自 uselayouts.com 的页面 CSS / 计算样式 / 头图像素
+C_PAGE = "#f5f3ee"      # 页面暖米白
+C_SOFT = "#f9f8f6"      # 浅格底
+C_NAVY = "#071a31"      # 标题/主文字
+C_BODY = "#4b565e"      # 正文灰
+C_CHIPTX = "#3d464c"    # 标签文字
+C_CHIPBG = "#f2f3f4"    # 标签底
+C_LINE = "#e2e2e2"      # 细边框
+C_MUTED = "#9f9f9f"     # 弱文字
+C_FOOT = "#acafb9"      # 页脚文字
+C_DARK = "#1b1c1d"      # 深色块
+C_BLUE = "#3351e5"      # 主按钮蓝
+C_SKY = "#2495d1"       # 计数胶囊·蓝
+C_SAGE = "#879f6c"      # 计数胶囊·绿（用作“跌”）
+C_TERRA = "#bc6147"     # 计数胶囊·赤陶（用作“涨”）
+C_RASP = "#b6547a"      # 计数胶囊·莓红
+UP_TX, DN_TX = "#b5523a", "#5e7b45"            # 白底上的涨/跌文字（红涨绿跌，按配色调柔）
+UP_TX_D, DN_TX_D = "#f2937c", "#a9c98c"        # 深底上的涨/跌文字
+HERO_GRAD = ("linear-gradient(168deg,#0b2745 0%,#0d2c51 16%,#2c5086 36%,#7e8ac7 54%,"
+             "#c39bdd 66%,#efb7ba 80%,#fcc0ad 100%)")
+HERO_FALLBACK = "#1d3a66"
+PASTEL_GRAD = "linear-gradient(135deg,#aca6f8 0%,#c5a2f0 30%,#e3b0de 62%,#fdc3a9 100%)"
+PASTEL_FALLBACK = "#e2c4ea"
+
+DOT = {"up": C_TERRA, "down": C_SAGE, "accent": C_SKY, "warn": C_RASP, "flat": "#bababb"}
 TONE_OF = {
     "多头排列": "up", "空头排列": "down", "均线纠缠": "flat",
     "价在三线上方": "up", "价在三线下方": "down", "夹在均线间": "flat",
@@ -440,110 +458,122 @@ TONE_OF = {
     "高位": "up", "低位": "down", "中间": "flat",
     "买盘主导": "up", "卖盘主导": "down", "均衡": "flat",
     "收缩": "accent", "扩张": "warn",
-    "划算": "accent", "一般": "flat", "不划算": "flat",
+    "划算": "accent", "一般": "flat", "不划算": "warn",
 }
 
 DARK_CSS = """
 @media (prefers-color-scheme: dark){
- .bg-page{background:#000000 !important;}
- .card{background:#1c1c1e !important;border-color:#2c2c2e !important;}
- .hero{background:#14213d !important;border-color:#24345a !important;}
- .t1{color:#f5f5f7 !important;} .t2{color:#a1a1a6 !important;} .t3{color:#8e8e93 !important;}
- .hr{border-color:#2c2c2e !important;}
- .p-up{background:#3b1f1d !important;color:#ff8a80 !important;}
- .p-dn{background:#16301f !important;color:#6fd59a !important;}
- .p-ac{background:#102a45 !important;color:#6cb4ff !important;}
- .p-wn{background:#3a2a12 !important;color:#ffb35c !important;}
- .p-fl{background:#2c2c2e !important;color:#a1a1a6 !important;}
- .c-up{color:#ff8a80 !important;} .c-dn{color:#6fd59a !important;} .c-ac{color:#6cb4ff !important;}
+ .pg{background:#111213 !important;}
+ .cd{background:#1b1c1d !important;border-color:#2c2d30 !important;}
+ .tl{background:#232427 !important;border-color:#2f3034 !important;}
+ .ch{background:#2a2b2f !important;border-color:#36373b !important;color:#d4d6dc !important;}
+ .tx{color:#f5f3ee !important;} .bd{color:#b9bec4 !important;} .mu{color:#8b8e96 !important;}
+ .hd{background:#0e0f11 !important;}
+ .up{color:#f2937c !important;} .dn{color:#a9c98c !important;}
 }
 """
 
 
-def _pill(text: str, tone: str | None = None, size: int = 12) -> str:
-    tone = tone or TONE_OF.get(text, "flat")
-    fg, bg, cls = TONES[tone]
-    return (f'<span class="{cls}" style="display:inline-block;padding:1px 8px;margin:2px 4px 2px 0;border-radius:99px;'
-            f'background:{bg};color:{fg};font-size:{size}px;line-height:18px;font-weight:500;white-space:nowrap;'
-            f'vertical-align:middle;">{html.escape(text)}</span>')
+def _mono(text: str, size: int = 10, color: str = C_MUTED, cls: str = "mu", spacing: float = 1.2) -> str:
+    return (f'<span class="{cls}" style="font-family:{MONO};font-size:{size}px;letter-spacing:{spacing}px;'
+            f'text-transform:uppercase;color:{color};">{html.escape(text)}</span>')
 
 
-def _eyebrow(text: str) -> str:
-    return (f'<div class="t3" style="font-family:{MONO};font-size:11px;letter-spacing:1.2px;text-transform:uppercase;'
-            f'color:{C_MUTED};margin:0 0 10px 4px;">{html.escape(text)}</div>')
+def _chip(text: str, tone: str | None = None, dark: bool = False) -> str:
+    """useLayouts 式等宽小标签：浅灰底 + 细边框 + 6px 圆角；前面的小圆点表示含义（红涨绿跌等）。"""
+    dot = ""
+    if tone is not False:
+        t = tone or TONE_OF.get(text, "flat")
+        dot = f'<b style="color:{DOT[t]};font-size:9px">●</b> '
+    if dark:
+        style = "background:#2a2b2f;border:1px solid #393a3f;color:#e6e6e8;"
+        cls = ""
+    else:
+        style = f"background:{C_CHIPBG};border:1px solid {C_LINE};color:{C_CHIPTX};"
+        cls = ' class="ch"'
+    return (f'<span{cls} style="display:inline-block;{style}border-radius:6px;padding:2px 7px;margin:2px 3px 2px 0;'
+            f'font:11px/17px {MONO}">{dot}{html.escape(text)}</span>')
 
 
-def _chg_style(x) -> tuple[str, str]:
+def _badge(text: str, bg: str) -> str:
+    """彩色计数胶囊（白色等宽字）。"""
+    return (f'<span style="display:inline-block;background:{bg};color:#ffffff;border-radius:99px;padding:1px 8px;'
+            f'font:600 11px/18px {MONO};white-space:nowrap;">{html.escape(text)}</span>')
+
+
+def _chg_color(x, dark: bool = False) -> tuple[str, str]:
     if nan(x) or x == 0:
-        return C_SUB, "t2"
-    return (TONES["up"][0], "c-up") if x > 0 else (TONES["down"][0], "c-dn")
+        return (C_FOOT if dark else C_MUTED), "mu"
+    if x > 0:
+        return (UP_TX_D if dark else UP_TX), "up"
+    return (DN_TX_D if dark else DN_TX), "dn"
 
 
-def _cell(label: str, value: str, inline: str = "", sub: str = "", color: str = C_TEXT, cls: str = "t1") -> str:
-    """网格里的一格：灰色小标题 / 大号读数 + 行内标签 / 补充说明（value、inline、sub 均为已转义 HTML）。"""
-    return (f'<div class="t3" style="font-size:12px;color:{C_MUTED};line-height:16px;">{html.escape(label)}</div>'
-            f'<div style="margin-top:3px;line-height:24px;"><b class="{cls}" style="font-size:16px;font-weight:600;'
-            f'color:{color};margin-right:5px;">{value}</b>{inline}</div>'
-            + (f'<div style="margin-top:1px;line-height:17px;">{sub}</div>' if sub else ""))
+TILE_STYLE = f"background:{C_SOFT};border:1px solid #ebe9e3;border-radius:12px;padding:10px 11px"
 
 
-def _sub(text: str) -> str:
-    return f'<span class="t2" style="font-size:12px;color:{C_SUB};">{html.escape(text)}</span>'
+def _tile(label: str, value: str, extra: str = "", color: str = C_NAVY, cls: str = "tx") -> tuple[str, str, str]:
+    """Bento 小格：等宽小标签 + 读数 + 补充（value/extra 为已转义 HTML）。返回 (class, style, 内容)。"""
+    inner = (f'<div class="mu" style="font:10px/14px {MONO};color:{C_MUTED}">{html.escape(label)}</div>'
+             f'<div class="{cls}" style="font-size:16px;font-weight:600;{"" if color == C_NAVY else "color:" + color + ";"}margin:3px 0 1px">{value}</div>'
+             + (f'<div>{extra}</div>' if extra else ""))
+    return "tl", TILE_STYLE, inner
 
 
-def _grid(cells: list[str]) -> str:
-    rows = []
-    for k in range(0, len(cells), 2):
-        pair = cells[k:k + 2] + [""] * (2 - len(cells[k:k + 2]))
-        top = "" if k == 0 else "border-top:1px solid #f0f0f2;"
-        tds = "".join(
-            f'<td class="hr" width="50%" valign="top" style="width:50%;padding:11px {"8px 11px 0" if j == 0 else "0 11px 8px"};{top}">{c}</td>'
-            for j, c in enumerate(pair))
-        rows.append(f"<tr>{tds}</tr>")
-    return ('<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" '
-            'style="border-collapse:collapse;width:100%;table-layout:fixed;">' + "".join(rows) + "</table>")
+def _row(tiles: list[tuple[tuple[str, str, str], int]], gap: int = 6) -> str:
+    """一行 Bento：[((class, style, 内容), 宽度百分比), ...]。
+    小格本身就是 <td>（同一行自动等高），格与格之间用 6px 空白列隔开。"""
+    tds = []
+    for k, ((cls, style, inner), w) in enumerate(tiles):
+        if k:
+            tds.append(f'<td width="{gap}" style="width:{gap}px;font-size:0">&nbsp;</td>')
+        tds.append(f'<td class="{cls}" width="{w}%" valign="top" style="{style}">{inner}</td>')
+    return ('<table width="100%" cellspacing="0" cellpadding="0" '
+            f'style="table-layout:fixed;margin-top:{gap}px"><tr>' + "".join(tds) + "</tr></table>")
 
 
-def _ticker_card(r: Result) -> str:
+def _small(text: str) -> str:
+    return f'<span class="bd" style="font-size:12px;color:{C_BODY}">{html.escape(text)}</span>'
+
+
+def _tag(text: str | None) -> str:
+    return _chip(text) if text else ""
+
+
+CARD = f'class="cd" style="background:#ffffff;border:1px solid {C_LINE};border-radius:18px;"'
+
+
+def _ticker_card(r: Result, compact: bool = False) -> str:
     e = html.escape
-    card = (f'class="card" style="background:#ffffff;border:1px solid {C_LINE};border-radius:18px;'
-            f'box-shadow:0 1px 2px rgba(0,0,0,0.04);"')
-    name = (r.name or "")[:34]
     if not r.ok:
-        return (f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" {card}>'
-                f'<tr><td style="padding:18px 20px;">'
-                f'<span class="t1" style="font-size:19px;font-weight:700;color:{C_TEXT};">{e(r.symbol)}</span>'
-                f'<span style="float:right;">{_pill("数据缺失", "warn")}</span>'
-                f'<div class="t2" style="font-size:12px;color:{C_SUB};margin-top:6px;">{e(r.error[:80])}</div>'
+        return (f'<table width="100%" cellspacing="0" cellpadding="0" {CARD}><tr>'
+                f'<td style="padding:16px 18px;"><span class="tx" style="font-size:18px;font-weight:600;color:{C_NAVY};">{e(r.symbol)}</span> '
+                f'&nbsp;{_badge("数据缺失", C_RASP)}<div class="bd" style="font-size:12px;color:{C_BODY};margin-top:6px;">{e(r.error[:80])}</div>'
                 f'</td></tr></table>')
     v = r.v
-    cc, ccls = _chg_style(v["chg"])
-    # 顶部：代码 + 名称 | 收盘 + 涨跌
-    head = (
-        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>'
-        f'<td valign="top" style="padding:0;">'
-        f'<div class="t1" style="font-size:20px;font-weight:700;letter-spacing:-0.3px;color:{C_TEXT};line-height:26px;">{e(r.symbol)}</div>'
-        f'<div class="t2" style="font-size:12px;color:{C_SUB};line-height:17px;margin-top:2px;">{e(name) if name else "&nbsp;"}</div>'
-        '</td>'
-        f'<td valign="top" align="right" style="padding:0 0 0 12px;white-space:nowrap;text-align:right;">'
-        f'<div class="t1" style="font-size:22px;font-weight:600;letter-spacing:-0.4px;color:{C_TEXT};line-height:26px;'
-        f'">{fp(v["close"])}</div>'
-        f'<div class="{ccls}" style="font-size:14px;font-weight:600;color:{cc};line-height:19px;margin-top:2px;'
-        f'">{fpct(v["chg"], 2)}</div>'
-        '</td></tr></table>')
-    changes = ""
+    name = (r.name or "").strip()
+    if len(name) > 26:  # 名称过长时在词边界截断
+        cut = name[:26].rsplit(" ", 1)[0].rstrip(" ,.-")
+        name = (cut or name[:26]) + "…"
+    badge_bg = C_MUTED if nan(v["chg"]) or v["chg"] == 0 else (C_TERRA if v["chg"] > 0 else C_SAGE)
+    sig = ""
     if r.changes:
-        changes = (f'<div class="hero" style="margin-top:14px;padding:8px 12px 6px;border-radius:12px;background:#f2f7fe;">'
-                   f'<span style="font-size:12px;font-weight:600;color:{C_ACCENT};margin-right:8px;vertical-align:middle;">今日信号</span>'
-                   + "".join(_pill(t, k) for k, t in r.changes) + "</div>")
-
-    def tone_color(txt: str) -> tuple[str, str]:
-        t = TONE_OF.get(txt, "flat")
-        if t == "up":
-            return TONES["up"][0], "c-up"
-        if t == "down":
-            return TONES["down"][0], "c-dn"
-        return C_TEXT, "t1"
+        sig = (f'<div style="margin-top:12px;">{_mono("今日信号", 10, "#bababb", "", 1.2)}<br>'
+               + "".join(_chip(t, k, dark=True) for k, t in r.changes) + "</div>")
+    # 深色“媒体”头块：代码 / 名称 / 收盘 / 涨跌胶囊
+    head = (
+        f'<div class="hd" style="background:{C_DARK};border-radius:12px;padding:16px 16px 14px;">'
+        '<table width="100%" cellspacing="0" cellpadding="0"><tr>'
+        f'<td valign="top"><div style="font-family:{MONO};font-size:10px;letter-spacing:1.2px;color:#bababb;line-height:14px;">'
+        f'{e(name.upper()) if name else "&nbsp;"}</div>'
+        f'<div style="font-size:24px;line-height:30px;font-weight:500;letter-spacing:-.4px;color:#ffffff;margin-top:4px;">{e(r.symbol)}</div></td>'
+        f'<td valign="top" align="right" style="text-align:right;white-space:nowrap;padding-left:10px;">'
+        f'<div style="font-size:24px;line-height:30px;font-weight:500;letter-spacing:-.4px;color:#ffffff;margin-top:18px;">{fp(v["close"])}</div>'
+        f'<div style="margin-top:4px;">{_badge(fpct(v["chg"], 2), badge_bg)}</div></td>'
+        f'</tr></table>{sig}</div>')
+    # 状态标签
+    rs_chip = _chip(f"{v['rs_txt']} vs {r.bench}", TONE_OF[v["rs_txt"]]) if v["rs_txt"] != "无数据" else ""
+    chips = _chip(v["align_txt"]) + _chip(v["struct_txt"]) + rs_chip
 
     def split_tag(txt: str) -> tuple[str, str | None]:
         if txt == "—" or " " not in txt:
@@ -551,134 +581,188 @@ def _ticker_card(r: Result) -> str:
         a, b = txt.split(" ", 1)
         return a, b
 
-    pill_or = lambda t: _pill(t) if t else ""  # noqa: E731
+    def tone_text(txt: str) -> tuple[str, str]:
+        t = TONE_OF.get(txt, "flat")
+        return {"up": (UP_TX, "up"), "down": (DN_TX, "dn")}.get(t, (C_NAVY, "tx"))
+
     vol_tag = None if nan(v["vol_ratio"]) else ("放量" if v["vol_ratio"] >= 1 else "缩量")
     vol_val = "—" if nan(v["vol_ratio"]) else f"{v['vol_ratio']:.2f}×"
     d20_tag = None if nan(v["d20a"]) else ("偏离大" if abs(v["d20a"]) >= 3 else "贴近" if abs(v["d20a"]) <= 1 else "正常")
     pos_val, pos_tag = split_tag(pos52_txt(v["pos52"]))
     rr_val, rr_tag = split_tag(rr_txt(v["rr"]))
     rr_val = rr_val.replace(":", " : ")
-    stop_extra = "" if nan(v["stop"]) else f"{v['stop_src']} · 距现价 {fpct(-v['risk'] / v['close'] * 100)}"
-    tgt_extra = "" if nan(v["target"]) else ("已突破近高 · 按 2R" if v["is_breakout"] else "近 20 根最高")
-    sc, scls = tone_color(v["struct_txt"])
-    rc, rcls = tone_color(v["rs_txt"])
-    cells = [
-        _cell("趋势", e(v["pos_txt"]), _pill(v["align_txt"])),
-        _cell("结构", e(v["struct_txt"]), "", _sub("收盘对比前 20 根高低"), sc, scls),
-        _cell("量能", vol_val, pill_or(vol_tag), _sub("对比 20 日均量")),
-        _cell("相对强弱", e(v["rs_txt"]), _sub(f"vs {r.bench}"), "", rc, rcls),
-        _cell("离MA20", fpct(v["d20p"]), pill_or(d20_tag), _sub("" if nan(v["d20a"]) else f"{v['d20a']:+.1f} ATR")),
-        _cell("一年位置", e(pos_val), pill_or(pos_tag), _sub(f"按 {r.bars} 根计") if r.bars < LEN52 else ""),
-        _cell("止损", fp(v["stop"]), "", _sub(stop_extra) if stop_extra else ""),
-        _cell("目标", fp(v["target"]), "", _sub(tgt_extra) if tgt_extra else ""),
-        _cell("风险收益比", e(rr_val), pill_or(rr_tag)),
-        _cell("近低 / 近高", f'{fp(v["ll"])}<span class="t3" style="color:{C_MUTED};font-weight:400;"> / </span>{fp(v["hh"])}'),
-    ]
-    foot_items = [f"ATR14 {fp(v['atr'])}", f"离MA50 {fpct(v['d50p'])}", f"涨跌量比 {fp(v['ud'])}",
-                  f"ATR分位 {'—' if nan(v['atr_rank']) else format(v['atr_rank'], '.0f') + '%'}"]
-    nw = lambda t: f'<span style="white-space:nowrap;">{e(t)}</span>'  # noqa: E731
-    foot = " · ".join(nw(t) for t in [r.date] + foot_items)
+    sc, scls = tone_text(v["struct_txt"])
+    rc, rcls = tone_text(v["rs_txt"])
+    stop_x = "" if nan(v["stop"]) else f"{v['stop_src']} · 距现价 {fpct(-v['risk'] / v['close'] * 100)}"
+    tgt_x = "" if nan(v["target"]) else ("已突破近高 · 按 2R" if v["is_breakout"] else "近 20 根最高")
+    slash = f'<span class="mu" style="color:{C_MUTED};font-weight:400"> / </span>'
+    if compact:  # 邮件过大时的精简卡片：只保留头块、状态标签和一行关键数字
+        line = " · ".join(f'<span style="white-space:nowrap">{e(t)}</span>' for t in [
+            f"止损 {fp(v['stop'])}", f"目标 {fp(v['target'])}", f"风险收益比 {rr_val}",
+            f"离MA20 {fpct(v['d20p'])}", f"一年位置 {pos52_txt(v['pos52'])}", r.date])
+        return (f'<table width="100%" cellspacing="0" cellpadding="0" {CARD}><tr><td style="padding:8px;">{head}'
+                f'<div style="padding:10px 4px 2px;">{chips}</div>'
+                f'<div class="bd" style="font-size:12px;line-height:19px;color:{C_BODY};padding:4px 4px 4px;">{line}</div>'
+                f'</td></tr></table>')
+    grid = (
+        _row([(_tile("趋势", e(v["pos_txt"]), _small("MA20 / 50 / 200")), 60),
+              (_tile("结构", e(v["struct_txt"]), _small("对比前 20 根"), sc, scls), 40)])
+        + _row([(_tile("量能", vol_val, _tag(vol_tag)), 33),
+                (_tile(f"相对 {r.bench}", e(v["rs_txt"]), "", rc, rcls), 34),
+                (_tile("一年位置", e(pos_val), _tag(pos_tag)), 33)])
+        + _row([(_tile("离MA20", fpct(v["d20p"]), _tag(d20_tag) + ("" if nan(v["d20a"]) else _small(f"{v['d20a']:+.1f} ATR"))), 50),
+                (_tile("风险收益比", e(rr_val), _tag(rr_tag)), 50)])
+        + _row([(_tile("止损", fp(v["stop"]), _small(stop_x) if stop_x else ""), 50),
+                (_tile("目标", fp(v["target"]), _small(tgt_x) if tgt_x else ""), 50)])
+        + _row([(_tile("近低 / 近高 · 20根", f'{fp(v["ll"])}{slash}{fp(v["hh"])}'), 100)])
+    )
+    foot = " · ".join(e(t).replace(" ", "&nbsp;") for t in [
+        r.date, f"ATR14 {fp(v['atr'])}", f"离MA50 {fpct(v['d50p'])}", f"涨跌量比 {fp(v['ud'])}",
+        f"ATR分位 {'—' if nan(v['atr_rank']) else format(v['atr_rank'], '.0f') + '%'}"])
     note = ("<br>" + e("，".join(r.notes))) if r.notes else ""
     return (
-        f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" {card}>'
-        f'<tr><td style="padding:20px 20px 4px;">{head}{changes}</td></tr>'
-        f'<tr><td style="padding:0 20px;">{_grid(cells)}</td></tr>'
-        f'<tr><td class="t3 hr" style="padding:12px 20px 18px;font-size:11px;line-height:17px;color:{C_MUTED};'
-        f'border-top:1px solid #f0f0f2;">{foot}{note}'
+        f'<table width="100%" cellspacing="0" cellpadding="0" {CARD}>'
+        f'<tr><td style="padding:8px;">{head}'
+        f'<div style="padding:10px 4px 2px;">{chips}</div>{grid}'
+        f'<div class="mu" style="font:10px/16px {MONO};color:{C_MUTED};padding:10px 4px 4px;">{foot}{note}</div>'
         f'</td></tr></table>')
 
 
+MAX_HTML_BYTES = 95_000  # Gmail 超过约 102KB 会折叠邮件，留出余量
+
+
 def build_html(results: list[Result], data_date: str, gen_time: str) -> str:
+    """完整卡片；若超过 MAX_HTML_BYTES，则从后往前把卡片换成精简版，直到不超限。"""
+    compact: set[str] = set()
+    out = _build_html(results, data_date, gen_time, compact)
+    for r in reversed(results):
+        if len(out.encode("utf-8")) <= MAX_HTML_BYTES:
+            break
+        compact.add(r.symbol)
+        out = _build_html(results, data_date, gen_time, compact)
+    if compact:
+        print(f"[提示] 邮件较大，{len(compact)} 只标的使用精简卡片：{'、'.join(sorted(compact))}")
+    return out
+
+
+def _build_html(results: list[Result], data_date: str, gen_time: str, compact: set[str]) -> str:
     e = html.escape
     ok = [r for r in results if r.ok]
     n_up = sum(1 for r in ok if not nan(r.v["chg"]) and r.v["chg"] > 0)
     n_dn = sum(1 for r in ok if not nan(r.v["chg"]) and r.v["chg"] < 0)
     n_sig = sum(len(r.changes) for r in ok)
+    changed = [r for r in ok if r.changes]
+    missing = [r for r in results if not r.ok]
     try:
         d = datetime.strptime(data_date, "%Y-%m-%d")
         date_cn = f"{d.year}年{d.month}月{d.day}日 周{'一二三四五六日'[d.weekday()]}"
     except ValueError:
         date_cn = data_date
-
-    spacer = lambda h: f'<tr><td style="height:{h}px;line-height:{h}px;font-size:0;">&nbsp;</td></tr>'  # noqa: E731
+    sp = lambda h: f'<tr><td style="height:{h}px;line-height:{h}px;font-size:0;">&nbsp;</td></tr>'  # noqa: E731
+    T = '<table width="100%" cellspacing="0" cellpadding="0"'
     rows: list[str] = []
 
-    # 标题
+    # ① 渐变头图（海军蓝 → 蓝 → 淡紫 / 蜜桃），无渐变的客户端显示海军蓝纯色
+    syms = "".join(
+        f'<span style="display:inline-block;background:rgba(255,255,255,.62);color:{C_NAVY};border-radius:99px;'
+        f'padding:2px 9px;margin:3px 4px 0 0;font:11px/17px {MONO};">{e(r.symbol)}</span>'
+        for r in results)
     rows.append(
-        f'<tr><td style="padding:8px 4px 0;">'
-        f'<div class="t3" style="font-family:{MONO};font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:{C_MUTED};">Watchlist · Daily</div>'
-        f'<div class="t1" style="font-size:32px;line-height:40px;font-weight:700;letter-spacing:-0.8px;color:{C_TEXT};margin-top:6px;">观察池日报</div>'
-        f'<div class="t2" style="font-size:15px;line-height:22px;color:{C_SUB};margin-top:4px;">{e(date_cn)} · 收盘数据</div>'
-        f'</td></tr>')
-    rows.append(spacer(20))
+        f'<tr><td>{T} bgcolor="{HERO_FALLBACK}" style="background-color:{HERO_FALLBACK};background-image:{HERO_GRAD};'
+        f'border-radius:18px;"><tr><td style="padding:22px 22px 20px;">'
+        f'<span style="display:inline-block;background:#ffffff;color:#000000;border-radius:3px;padding:3px 7px;'
+        f'font-family:{MONO};font-size:10px;line-height:13px;letter-spacing:.6px;">&#9650; WATCHLIST // {e(data_date)}<br>DAILY CLOSE SCAN</span>'
+        f'<div style="font-size:36px;line-height:42px;font-weight:500;letter-spacing:-1px;color:#ffffff;margin-top:18px;">观察池日报</div>'
+        f'<div style="font-size:15px;line-height:23px;color:#ffffff;opacity:.85;margin-top:8px;">{e(date_cn)} · 收盘数据<br>'
+        f'固定公式扫描 · 与 TradingView 指标同算法</div>'
+        f'<div style="margin-top:18px;"><a href="https://github.com/longyunBegin/trade/blob/main/scan.md" '
+        f'style="display:inline-block;background:{C_BLUE};color:#ffffff;text-decoration:none;border-radius:12px;'
+        f'padding:9px 16px;font-size:14px;font-weight:500;">查看 scan.md</a></div>'
+        f'<div style="height:64px;line-height:64px;font-size:0;">&nbsp;</div>'
+        f'<div style="font-family:{MONO};font-size:10px;letter-spacing:1px;color:#ffffff;margin-bottom:4px;">'
+        f'WATCHING {len(results)} TICKERS</div>{syms}'
+        f'</td></tr></table></td></tr>')
+    rows.append(sp(10))
 
-    # 概览数字（bento 三格）
-    def stat(num, label, color=C_TEXT, cls="t1"):
-        return (f'<td width="33%" align="center" valign="top" style="width:33.33%;padding:16px 4px;">'
-                f'<div class="{cls}" style="font-size:26px;line-height:30px;font-weight:600;color:{color};">{num}</div>'
-                f'<div class="t3" style="font-size:12px;color:{C_MUTED};margin-top:4px;">{label}</div></td>')
-    rows.append(
-        f'<tr><td><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="card" '
-        f'style="background:#ffffff;border:1px solid {C_LINE};border-radius:18px;table-layout:fixed;"><tr>'
-        + stat(n_up, "上涨", TONES["up"][0], "c-up") + stat(n_dn, "下跌", TONES["down"][0], "c-dn")
-        + stat(n_sig, "新信号", C_ACCENT, "c-ac") + "</tr></table></td></tr>")
-    rows.append(spacer(28))
+    # ② Bento 概览：深色宽格 + 两个白格
+    def stat_tile(label, num, color, cls):
+        return ("cd", f"background:#ffffff;border:1px solid {C_LINE};border-radius:16px;padding:14px 12px",
+                f'{_mono(label)}<div class="{cls}" style="font-size:30px;line-height:36px;font-weight:500;color:{color};margin-top:6px">{num}</div>')
+    sig_tile = ("hd", f"background:{C_DARK};border:1px solid {C_DARK};border-radius:16px;padding:14px",
+                f'{_mono("New signals", 10, "#bababb", "", 1.2)}'
+                f'<div style="font-size:30px;line-height:36px;font-weight:500;color:#ffffff;margin-top:6px">{n_sig}'
+                f'<span style="font-size:13px;color:#bababb;font-weight:400"> 条 · {len(changed)} 只</span></div>')
+    rows.append(f"<tr><td>{_row([(sig_tile, 50), (stat_tile('上涨', n_up, UP_TX, 'up'), 25), (stat_tile('下跌', n_dn, DN_TX, 'dn'), 25)], 8)}</td></tr>")
+    rows.append(sp(10))
 
-    # 今日变化（高亮卡片）
-    rows.append(f"<tr><td>{_eyebrow('Changes · 今日变化')}</td></tr>")
-    changed = [r for r in ok if r.changes]
-    inner = []
+    # ③ 今日变化：白色外框 + 淡彩渐变“媒体”块 + 计数胶囊标题 + 等宽标签
     if changed:
-        for idx, r in enumerate(changed):
-            top = "" if idx == 0 else "border-top:1px solid #dfe8f5;"
-            inner.append(
-                f'<tr><td class="hr" valign="top" width="78" style="width:78px;padding:12px 0 8px;{top}">'
-                f'<span class="t1" style="font-size:15px;font-weight:700;color:{C_TEXT};">{e(r.symbol)}</span></td>'
-                f'<td class="hr" valign="top" style="padding:10px 0 6px;{top}">'
-                + "".join(_pill(t, k) for k, t in r.changes) + "</td></tr>")
+        lines = []
+        for k, r in enumerate(changed):
+            top = "" if k == 0 else "border-top:1px solid rgba(7,26,49,.10);"
+            lines.append(
+                f'<tr><td valign="top" width="74" style="width:74px;padding:10px 0 7px;{top}">'
+                f'<span style="font-size:15px;font-weight:600;color:{C_NAVY};">{e(r.symbol)}</span></td>'
+                f'<td valign="top" style="padding:8px 0 5px;{top}">'
+                + "".join(
+                    f'<span style="display:inline-block;background:#ffffff;color:{C_NAVY};border-radius:6px;padding:2px 8px;'
+                    f'margin:2px 4px 2px 0;font:11px/17px {MONO};white-space:nowrap;">'
+                    f'<b style="color:{DOT[kk]};font-size:9px">●</b> {e(t)}</span>'
+                    for kk, t in r.changes) + "</td></tr>")
+        inner = f'{T}>' + "".join(lines) + "</table>"
     else:
-        inner.append(f'<tr><td class="t2" style="padding:6px 0;font-size:15px;color:{C_SUB};">今日无新信号，各标的状态延续。</td></tr>')
-    missing = [r for r in results if not r.ok]
+        inner = f'<div style="font-size:15px;color:{C_NAVY};padding:6px 0;">今日无新信号，各标的状态延续。</div>'
     if missing:
-        inner.append(f'<tr><td colspan="2" style="padding:10px 0 4px;font-size:13px;color:{TONES["warn"][0]};">'
-                     f'数据缺失：{e("、".join(r.symbol for r in missing))}</td></tr>')
+        inner += (f'<div style="font-size:12px;color:{C_NAVY};padding-top:8px;">数据缺失：'
+                  f'{e("、".join(r.symbol for r in missing))}</div>')
     rows.append(
-        f'<tr><td><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="hero" '
-        f'bgcolor="#eef4fd" style="background-color:#eef4fd;'
-        f'background-image:linear-gradient(135deg,#eaf2ff 0%,#f1ecff 55%,#fdf0ea 100%);'
-        f'border:1px solid #dbe6f7;border-radius:18px;">'
-        f'<tr><td style="padding:16px 20px 12px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">'
-        + "".join(inner) + "</table></td></tr></table></td></tr>")
-    rows.append(spacer(28))
+        f'<tr><td>{T} {CARD}><tr><td style="padding:8px;">'
+        f'{T} bgcolor="{PASTEL_FALLBACK}" style="background-color:{PASTEL_FALLBACK};background-image:{PASTEL_GRAD};border-radius:12px;">'
+        f'<tr><td style="padding:14px 16px 12px;">{inner}</td></tr></table>'
+        f'<div style="padding:12px 6px 4px;">{_badge(str(n_sig), C_TERRA if n_sig else C_MUTED)}'
+        f'<span class="tx" style="font-size:19px;font-weight:500;color:{C_NAVY};vertical-align:middle;margin-left:8px;">今日变化</span></div>'
+        f'<div style="padding:4px 6px 4px;">{_chip("结构突破/跌破", False)}{_chip("穿越 MA20/50/200", False)}'
+        f'{_chip("排列变化", False)}{_chip("相对强弱", False)}</div>'
+        f'</td></tr></table></td></tr>')
+    rows.append(sp(34))
 
-    # 每只标的
-    rows.append(f"<tr><td>{_eyebrow(f'Watchlist · 全部标的 {len(results)}')}</td></tr>")
-    for idx, r in enumerate(results):
-        if idx:
-            rows.append(spacer(12))
-        rows.append(f"<tr><td>{_ticker_card(r)}</td></tr>")
-    rows.append(spacer(28))
-
-    # 页脚
+    # ④ 区块标题
     rows.append(
-        f'<tr><td align="center" class="t3" style="padding:4px 12px 8px;font-size:12px;line-height:19px;color:{C_MUTED};text-align:center;">'
+        f'<tr><td style="padding:0 4px;">{_mono("Watchlist · " + str(len(results)))}'
+        f'<div class="tx" style="font-size:28px;line-height:34px;font-weight:500;letter-spacing:-.6px;color:{C_NAVY};margin-top:8px;">全部标的</div>'
+        f'<div class="bd" style="font-size:14px;line-height:21px;color:{C_BODY};margin-top:6px;">'
+        f'趋势 · 结构 · 量能 · 位置与风险 · 红涨绿跌</div></td></tr>')
+    rows.append(sp(16))
+
+    # ⑤ 每只标的
+    for k, r in enumerate(results):
+        if k:
+            rows.append(sp(12))
+        rows.append(f"<tr><td>{_ticker_card(r, r.symbol in compact)}</td></tr>")
+    rows.append(sp(16))
+
+    # ⑥ 深色页脚
+    rows.append(
+        f'<tr><td>{T} class="hd" bgcolor="{C_DARK}" style="background:{C_DARK};border-radius:18px;"><tr>'
+        f'<td style="padding:20px 22px;font-size:12px;line-height:20px;color:{C_FOOT};">'
+        f'<div style="font-size:15px;color:#ffffff;font-weight:500;margin-bottom:6px;">不构成投资建议</div>'
         f'<span style="white-space:nowrap;">数据日期 {e(data_date)}</span> · <span style="white-space:nowrap;">数据源 Yahoo Finance</span><br>'
         f'<span style="white-space:nowrap;">生成于 {e(gen_time)} 北京时间</span> · <span style="white-space:nowrap;">红涨绿跌</span><br>'
-        f'固定公式计算，与 TradingView 指标一致<br>'
-        f'<span class="t2" style="color:{C_SUB};font-weight:600;">不构成投资建议</span></td></tr>')
+        f'固定公式机械计算，数据可能有延迟或错误。'
+        f'<div style="font-family:{MONO};font-size:10px;letter-spacing:1px;color:#6f727a;margin-top:12px;">'
+        f'LONGYUNBEGIN / TRADE · WATCHLIST SCAN</div>'
+        f'</td></tr></table></td></tr>')
 
     return (
         '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">'
         f'<title>观察池日报 {e(data_date)}</title><style>{DARK_CSS}</style></head>'
-        f'<body class="bg-page" style="margin:0;padding:0;background:{C_PAGE};-webkit-text-size-adjust:100%;">'
+        f'<body class="pg" style="margin:0;padding:0;background:{C_PAGE};-webkit-text-size-adjust:100%;">'
         f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;">'
         f'{e(data_date)} · 上涨 {n_up} · 下跌 {n_dn} · 新信号 {n_sig}</div>'
-        f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="bg-page" '
-        f'bgcolor="{C_PAGE}" style="background:{C_PAGE};"><tr><td align="center" style="padding:28px 14px 36px;">'
-        f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" '
-        f'style="max-width:640px;width:100%;font-family:{FONT};color:{C_TEXT};font-variant-numeric:tabular-nums;">'
+        f'{T} class="pg" bgcolor="{C_PAGE}" style="background:{C_PAGE};"><tr><td align="center" style="padding:16px 12px 28px;">'
+        f'{T} style="max-width:640px;width:100%;font-family:{FONT};color:{C_NAVY};font-variant-numeric:tabular-nums;">'
         + "".join(rows) +
         '</table></td></tr></table></body></html>')
 
@@ -837,7 +921,9 @@ def main() -> int:
         return 0
     print(why if go else f"{why}——已指定 force，继续")
 
-    data_date = max(r.date for r in ok)
+    # 数据日期以美股为准（与跳过检查一致）；观察池里没有美股时取最新日期
+    us_dates = [r.date for r in ok if r.tz == "America/New_York"]
+    data_date = max(us_dates) if us_dates else max(r.date for r in ok)
     gen_time = now.astimezone(BJ).strftime("%Y-%m-%d %H:%M")
     md = build_markdown(results, data_date)
     SCAN_MD.write_text(md, encoding="utf-8")
