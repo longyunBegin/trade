@@ -6,7 +6,7 @@ maFastLen = input.int(20, "MA快")
 maMidLen  = input.int(50, "MA中")
 maSlowLen = input.int(200, "MA慢")
 atrLen    = input.int(14, "ATR长度")
-benchSym  = input.symbol("NASDAQ:SOXX", "对比基准")
+benchSym  = input.symbol("NASDAQ:SOXX", "NASDAQ:SOXX")
 lookback  = input.int(20, "结构回看根数")
 
 // 均线
