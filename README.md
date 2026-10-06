@@ -7,6 +7,7 @@
 每个指标一个文件夹，里面是代码和详细讲解。
 
 - [第一性原理面板](./indicators/first-principles-panel/)：只看价格、成交量和相对板块表现，一张表看清趋势、力量、位置与风险（TradingView Pine v6）
+- [位置与风险面板](./indicators/position-risk-panel/)：离均线多远、一年位置、量价配合、波动收缩、止损与风险收益比、未回补缺口（TradingView Pine v6）
 
 ## 想法
 

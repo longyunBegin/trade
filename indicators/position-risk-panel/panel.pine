@@ -1,0 +1,153 @@
+//@version=6
+indicator("位置与风险面板", overlay=true, max_boxes_count=50, max_lines_count=10, max_labels_count=10)
+
+// ========== 参数 ==========
+maFastLen = input.int(20, "MA快")
+maMidLen  = input.int(50, "MA中")
+atrLen    = input.int(14, "ATR长度")
+len52     = input.int(252, "一年K线数（日线≈252）")
+volLen    = input.int(20, "量价统计天数")
+atrPctLen = input.int(120, "波动比较区间")
+lookback  = input.int(20, "近高低回看根数")
+atrMult   = input.float(2.0, "ATR止损倍数", step=0.5)
+maxGaps   = input.int(10, "最多显示缺口数", minval=1, maxval=40)
+showLines = input.bool(true, "显示止损/目标线")
+
+// ========== 基础 ==========
+maFast = ta.sma(close, maFastLen)
+maMid  = ta.sma(close, maMidLen)
+atrVal = ta.atr(atrLen)
+hh     = ta.highest(high, lookback)
+ll     = ta.lowest(low, lookback)
+
+// ========== 1. 离均线多远 ==========
+distFastPct = (close - maFast) / maFast * 100
+distMidPct  = (close - maMid) / maMid * 100
+distFastAtr = (close - maFast) / atrVal
+distMidAtr  = (close - maMid) / atrVal
+
+// ========== 2. 一年位置 ==========
+n52   = math.max(1, math.min(bar_index + 1, len52))
+hi52  = ta.highest(high, n52)
+lo52  = ta.lowest(low, n52)
+pos52 = hi52 > lo52 ? (close - lo52) / (hi52 - lo52) * 100 : na
+
+// ========== 3. 量价配合 ==========
+upVol   = math.sum(close > close[1] ? volume : 0.0, volLen)
+downVol = math.sum(close < close[1] ? volume : 0.0, volLen)
+udRatio = downVol > 0 ? upVol / downVol : na
+
+// ========== 4. 波动收缩 ==========
+nAtr    = math.max(1, math.min(bar_index + 1, atrPctLen))
+atrHi   = ta.highest(atrVal, nAtr)
+atrLo   = ta.lowest(atrVal, nAtr)
+atrRank = atrHi > atrLo ? (atrVal - atrLo) / (atrHi - atrLo) * 100 : na
+
+// ========== 5. 止损 / 目标 / 风险收益比 ==========
+stopAtr    = close - atrMult * atrVal
+stopPx     = math.max(ll, stopAtr)          // 结构止损与ATR止损取更近的一个
+riskAmt    = close - stopPx
+isBreakout = close >= hh
+targetPx   = isBreakout ? close + 2 * riskAmt : hh
+rewardAmt  = targetPx - close
+rrRatio    = riskAmt > 0 ? rewardAmt / riskAmt : na
+
+// ========== 6. 未回补跳空缺口 ==========
+var array<box>   gapBoxes = array.new<box>()
+var array<int>   gapDirs  = array.new<int>()
+var array<float> gapTops  = array.new<float>()
+var array<float> gapBots  = array.new<float>()
+
+// 先检查旧缺口是否被回补
+if array.size(gapBoxes) > 0
+    for i = array.size(gapBoxes) - 1 to 0
+        gDir   = array.get(gapDirs, i)
+        gTop   = array.get(gapTops, i)
+        gBot   = array.get(gapBots, i)
+        filled = gDir == 1 ? low <= gBot : high >= gTop
+        if filled
+            box.delete(array.get(gapBoxes, i))
+            array.remove(gapBoxes, i)
+            array.remove(gapDirs, i)
+            array.remove(gapTops, i)
+            array.remove(gapBots, i)
+
+// 再记录新缺口
+gapUp   = low > high[1]
+gapDown = high < low[1]
+if gapUp or gapDown
+    gTop = gapUp ? low : low[1]
+    gBot = gapUp ? high[1] : high
+    gCol = gapUp ? color.new(color.teal, 80) : color.new(color.red, 80)
+    b = box.new(left=bar_index - 1, top=gTop, right=bar_index, bottom=gBot, border_color=gCol, bgcolor=gCol, extend=extend.right)
+    array.push(gapBoxes, b)
+    array.push(gapDirs, gapUp ? 1 : -1)
+    array.push(gapTops, gTop)
+    array.push(gapBots, gBot)
+    if array.size(gapBoxes) > maxGaps
+        box.delete(array.shift(gapBoxes))
+        array.shift(gapDirs)
+        array.shift(gapTops)
+        array.shift(gapBots)
+
+// ========== 文字读法 ==========
+f(x) => str.tostring(x, format.mintick)
+pct(x) => (x >= 0 ? "+" : "") + str.tostring(x, "#.#") + "%"
+
+distTxt(p, a) =>
+    tag = math.abs(a) >= 3 ? "偏离大" : math.abs(a) <= 1 ? "贴近" : "正常"
+    pct(p) + "（" + str.tostring(a, "#.#") + " ATR，" + tag + "）"
+
+pos52Txt = na(pos52) ? "无数据" : str.tostring(pos52, "#") + "%，" + (pos52 >= 80 ? "近一年高位" : pos52 <= 20 ? "近一年低位" : "中间区域")
+udTxt    = na(udRatio) ? "无数据" : str.tostring(udRatio, "#.##") + "，" + (udRatio >= 1.2 ? "买盘主导" : udRatio <= 0.8 ? "卖盘主导" : "大致均衡")
+atrTxt   = na(atrRank) ? "无数据" : "处于近期 " + str.tostring(atrRank, "#") + "% 分位，" + (atrRank <= 20 ? "波动收缩" : atrRank >= 80 ? "波动扩张" : "正常")
+stopTxt  = f(stopPx) + "（" + (stopPx == ll ? "近低" : str.tostring(atrMult) + " ATR") + "，距现价 " + pct(-riskAmt / close * 100) + "）"
+tgtTxt   = f(targetPx) + (isBreakout ? "（已突破近高，按 2R 估）" : "（近高）")
+rrTxt    = na(rrRatio) ? "无数据" : "1 : " + str.tostring(rrRatio, "#.#") + (rrRatio >= 2 ? "，划算" : rrRatio < 1 ? "，不划算" : "，一般")
+
+// 最近的未回补缺口
+gapTxt = "无"
+if barstate.islast and array.size(gapBoxes) > 0
+    float aboveBot = na
+    float belowTop = na
+    for i = 0 to array.size(gapBoxes) - 1
+        gT = array.get(gapTops, i)
+        gB = array.get(gapBots, i)
+        if gB > close and (na(aboveBot) or gB < aboveBot)
+            aboveBot := gB
+        if gT < close and (na(belowTop) or gT > belowTop)
+            belowTop := gT
+    gapTxt := str.tostring(array.size(gapBoxes)) + " 个；上方最近 " + (na(aboveBot) ? "无" : f(aboveBot)) + "，下方最近 " + (na(belowTop) ? "无" : f(belowTop))
+
+// ========== 止损 / 目标线 ==========
+var line  stopLn  = na
+var line  tgtLn   = na
+var label stopLb  = na
+var label tgtLb   = na
+if barstate.islast and showLines
+    line.delete(stopLn)
+    line.delete(tgtLn)
+    label.delete(stopLb)
+    label.delete(tgtLb)
+    stopLn := line.new(bar_index - 15, stopPx, bar_index + 5, stopPx, color=color.red, style=line.style_dashed, width=2)
+    tgtLn  := line.new(bar_index - 15, targetPx, bar_index + 5, targetPx, color=color.lime, style=line.style_dashed, width=2)
+    stopLb := label.new(bar_index + 5, stopPx, "止损 " + f(stopPx), style=label.style_label_left, color=color.new(color.red, 20), textcolor=color.white, size=size.small)
+    tgtLb  := label.new(bar_index + 5, targetPx, "目标 " + f(targetPx), style=label.style_label_left, color=color.new(color.green, 20), textcolor=color.white, size=size.small)
+
+// ========== 摘要表 ==========
+var table tbl = table.new(position.bottom_left, 2, 10, bgcolor=color.new(color.black, 25))
+cell(r, k, v) =>
+    table.cell(tbl, 0, r, k, text_color=color.white, text_halign=text.align_left)
+    table.cell(tbl, 1, r, v, text_color=color.white, text_halign=text.align_left)
+
+if barstate.islast
+    cell(0, "项", "读法")
+    cell(1, "离MA" + str.tostring(maFastLen), distTxt(distFastPct, distFastAtr))
+    cell(2, "离MA" + str.tostring(maMidLen), distTxt(distMidPct, distMidAtr))
+    cell(3, "一年位置", pos52Txt)
+    cell(4, "量价(涨/跌量)", udTxt)
+    cell(5, "波动", atrTxt)
+    cell(6, "止损", stopTxt)
+    cell(7, "目标", tgtTxt)
+    cell(8, "风险收益比", rrTxt)
+    cell(9, "未补缺口", gapTxt)
