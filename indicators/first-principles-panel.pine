@@ -1,0 +1,66 @@
+//@version=6
+indicator("第一性原理面板", overlay=true)
+
+// 参数
+maFastLen = input.int(20, "MA快")
+maMidLen  = input.int(50, "MA中")
+maSlowLen = input.int(200, "MA慢")
+atrLen    = input.int(14, "ATR长度")
+benchSym  = input.symbol("NASDAQ:SOXX", "对比基准")
+lookback  = input.int(20, "结构回看根数")
+
+// 均线
+maFast = ta.sma(close, maFastLen)
+maMid  = ta.sma(close, maMidLen)
+maSlow = ta.sma(close, maSlowLen)
+plot(maFast, "MA20", color=color.yellow)
+plot(maMid,  "MA50", color=color.orange)
+plot(maSlow, "MA200", color=color.red, linewidth=2)
+
+// 近 N 根高低（阻力/支撑）
+hh = ta.highest(high, lookback)
+ll = ta.lowest(low, lookback)
+plot(hh, "近高阻力", color=color.new(color.fuchsia, 50), style=plot.style_stepline)
+plot(ll, "近低支撑", color=color.new(color.lime, 50), style=plot.style_stepline)
+
+// ATR
+atrVal = ta.atr(atrLen)
+
+// 量能
+volMa    = ta.sma(volume, 20)
+volRatio = volume / volMa
+
+// 结构
+prevHH = ta.highest(high[1], lookback)
+prevLL = ta.lowest(low[1], lookback)
+structTxt = close > prevHH ? "突破近高" : close < prevLL ? "跌破近低" : "区间内"
+
+// 均线位置与排列
+aboveAll = close > maFast and close > maMid and close > maSlow
+belowAll = close < maFast and close < maMid and close < maSlow
+posTxt   = aboveAll ? "价在三线上方" : belowAll ? "价在三线下方" : "夹在均线间"
+alignTxt = maFast > maMid and maMid > maSlow ? "多头排列" : maFast < maMid and maMid < maSlow ? "空头排列" : "均线纠缠"
+
+// 相对强弱
+benchClose = request.security(benchSym, timeframe.period, close)
+rs   = close / benchClose
+rsMa = ta.sma(rs, 20)
+rsTxt = rs > rsMa ? "相对基准偏强" : "相对基准偏弱"
+
+// 摘要表
+var table t = table.new(position.bottom_right, 2, 7, bgcolor=color.new(color.black, 25))
+if barstate.islast
+    table.cell(t, 0, 0, "项", text_color=color.white)
+    table.cell(t, 1, 0, "读法", text_color=color.white)
+    table.cell(t, 0, 1, "均线", text_color=color.white)
+    table.cell(t, 1, 1, posTxt + " · " + alignTxt, text_color=color.white)
+    table.cell(t, 0, 2, "结构", text_color=color.white)
+    table.cell(t, 1, 2, structTxt, text_color=color.white)
+    table.cell(t, 0, 3, "量能", text_color=color.white)
+    table.cell(t, 1, 3, (volRatio >= 1 ? "放量 " : "缩量 ") + str.tostring(volRatio, "#.##") + "x 均量", text_color=color.white)
+    table.cell(t, 0, 4, "ATR", text_color=color.white)
+    table.cell(t, 1, 4, str.tostring(atrVal, format.mintick), text_color=color.white)
+    table.cell(t, 0, 5, "相对", text_color=color.white)
+    table.cell(t, 1, 5, rsTxt + " vs " + benchSym, text_color=color.white)
+    table.cell(t, 0, 6, "近低/近高", text_color=color.white)
+    table.cell(t, 1, 6, str.tostring(ll, format.mintick) + " / " + str.tostring(hh, format.mintick), text_color=color.white)
