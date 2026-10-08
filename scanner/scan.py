@@ -69,6 +69,32 @@ CLOSE_BUFFER = timedelta(minutes=20)
 # 数据获取 —— 换数据源只需要改这个函数，返回同样格式的 DataFrame 即可：
 #   index = 日期（datetime.date 升序），列 = Open/High/Low/Close/Volume
 # =====================================================================
+def _patch_missing_close(tk, df: pd.DataFrame) -> pd.DataFrame:
+    """Yahoo 偶尔给出“有成交量、收盘价却是空”的最新日线（常见于欧股，如 SIVE.ST）。
+    这种情况用当天的 1 小时 K 线补齐开高低收，避免整天被丢掉、数据落后一天。"""
+    if df.empty or not pd.isna(df["Close"].iloc[-1]):
+        return df
+    try:
+        intra = tk.history(period="5d", interval="1h", auto_adjust=False, actions=False)
+        if intra is None or intra.empty:
+            return df
+        day = df.index[-1].date()
+        bars = intra[[ts.date() == day for ts in intra.index]].dropna(subset=["Close"])
+        if bars.empty:
+            return df
+        df = df.copy()
+        idx = df.index[-1]
+        df.loc[idx, "Open"] = bars["Open"].iloc[0]
+        df.loc[idx, "High"] = bars["High"].max()
+        df.loc[idx, "Low"] = bars["Low"].min()
+        df.loc[idx, "Close"] = bars["Close"].iloc[-1]
+        if pd.isna(df.loc[idx, "Volume"]):
+            df.loc[idx, "Volume"] = bars["Volume"].sum()
+    except Exception:
+        pass
+    return df
+
+
 def fetch_daily(symbol: str, period: str = "2y", retries: int = 3) -> pd.DataFrame:
     import yfinance as yf
 
@@ -79,7 +105,9 @@ def fetch_daily(symbol: str, period: str = "2y", retries: int = 3) -> pd.DataFra
             df = tk.history(period=period, interval="1d", auto_adjust=False, actions=False)
             if df is None or df.empty:
                 raise ValueError("无数据")
-            df = df[["Open", "High", "Low", "Close", "Volume"]].dropna(subset=["Close"])
+            df = df[["Open", "High", "Low", "Close", "Volume"]]
+            df = _patch_missing_close(tk, df)
+            df = df.dropna(subset=["Close"])
             tz = str(df.index.tz) if df.index.tz is not None else None
             # 盘中运行时丢弃当天未收盘的 K 线（与“日线收盘”口径保持一致）
             if tz in EXCHANGE_CLOSE and len(df) > 0:
