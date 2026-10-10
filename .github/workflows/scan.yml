@@ -32,13 +32,13 @@ jobs:
       - name: 安装依赖
         run: pip install -r scanner/requirements.txt
 
-      - name: 扫描并发送邮件
+      - name: 扫描（不发信）
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
           FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && 'true' || 'false' }}
-        run: python scanner/scan.py
+        run: python scanner/scan.py --no-email  # 发信改由 Grok Bot 用 lyatomic@mail.grokbot.com
 
       - name: 提交 scan.md
         if: ${{ !cancelled() && hashFiles('scan.md') != '' }}
