@@ -25,8 +25,8 @@ SIVE.ST, ^OMX   # 瑞典股票，用 OMX 斯德哥尔摩 30 指数做基准
 
 ## 运行时间
 
-- 自动：**北京时间周二至周六 09:45**，由 Grok Bot 例程「观察池日报」触发 GitHub Actions（`workflow_dispatch`）：跑 `scanner/scan.py`，经 Gmail SMTP 发信，并提交 `scan.md`。不再用 GitHub cron。
-- 也可在 Actions 页手动 **Run workflow**（需要重发时勾选 **force**）。
+- 自动：**北京时间周二至周六 09:45**，由 Grok Bot 例程「观察池日报」在本机跑 `scanner/scan.py`，经 Gmail SMTP 发信。GitHub Actions 工作流已停用，不再用 Actions 触发。
+- 需要重发时在本机加 `--force`；不要用 `gh workflow run`。
 
 ## 什么时候会跳过（不发信、不更新 scan.md）
 
@@ -42,9 +42,7 @@ SIVE.ST, ^OMX   # 瑞典股票，用 OMX 斯德哥尔摩 30 指数做基准
 
 ## 手动运行
 
-- 网页：仓库 **Actions** 标签 → 左侧选 **观察池日报** → 右侧 **Run workflow** → 选 `main` →（需要重发时勾选 **force**）→ **Run workflow**。
-- 命令行：`gh workflow run scan.yml -R longyunBegin/trade`，强制重发加 `-f force=true`
-- 本地：
+- 本地（推荐）：
 
   ```bash
   pip install -r scanner/requirements.txt
@@ -59,8 +57,8 @@ SIVE.ST, ^OMX   # 瑞典股票，用 OMX 斯德哥尔摩 30 指数做基准
 - **发件人**：个人 Gmail（默认等于 `GMAIL_USER` / `SMTP_USER`；可用 `MAIL_FROM` 覆盖，可选 `MAIL_FROM_NAME`）
 - **收件人**：`MAIL_TO`（Secrets / 环境变量，不写进公开仓库）
 - **SMTP**：默认 `smtp.gmail.com:465`；可用 `SMTP_HOST` / `SMTP_PORT`；密码用 `GMAIL_APP_PASSWORD` 或 `SMTP_PASSWORD`
-- Actions 与本地只要配齐上述变量就会发信；只要文件可加 `--no-email`
-- GitHub Secrets：`GMAIL_USER`、`GMAIL_APP_PASSWORD`、`MAIL_TO`；可选 `MAIL_FROM`、`MAIL_FROM_NAME`
+- 本机配齐上述变量就会发信；只要文件可加 `--no-email`
+- 环境变量：`GMAIL_USER`、`GMAIL_APP_PASSWORD`、`MAIL_TO`；可选 `MAIL_FROM`、`MAIL_FROM_NAME`
 
 ## 邮件样式
 
