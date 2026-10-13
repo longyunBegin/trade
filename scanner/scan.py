@@ -8,8 +8,13 @@
 
 上一个美股交易日休市、美股没有新日线、或 scan.md 已是同一数据日期时，跳过（不写文件、不发信），退出码 0。
 
-发信需要环境变量：GMAIL_USER、GMAIL_APP_PASSWORD、MAIL_TO（多个收件人用逗号分隔）。
-缺任何一个就跳过发信，只写文件。
+发信环境变量：
+  必需：GMAIL_APP_PASSWORD（或 SMTP_PASSWORD）、MAIL_TO（多个收件人用逗号分隔）
+  登录：GMAIL_USER（或 SMTP_USER）
+  发件人：MAIL_FROM（可选；默认等于登录账号，当前为个人 Gmail）
+  显示名：MAIL_FROM_NAME（可选）
+  SMTP：SMTP_HOST（默认 smtp.gmail.com）、SMTP_PORT（默认 465）
+缺登录账号、密码或收件人时跳过发信，只写文件。
 """
 from __future__ import annotations
 
@@ -25,6 +30,7 @@ from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.header import Header
+from email.utils import formataddr
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -858,22 +864,34 @@ def read_watchlist(path: Path) -> list[tuple[str, str]]:
 
 
 def send_email(subject: str, html_body: str, text_body: str) -> str:
-    user = os.environ.get("GMAIL_USER", "").strip()
-    pwd = os.environ.get("GMAIL_APP_PASSWORD", "").strip()
+    smtp_user = (os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER") or "").strip()
+    pwd = (os.environ.get("SMTP_PASSWORD") or os.environ.get("GMAIL_APP_PASSWORD") or "").strip()
     to = os.environ.get("MAIL_TO", "").strip()
-    missing = [k for k, val in (("GMAIL_USER", user), ("GMAIL_APP_PASSWORD", pwd), ("MAIL_TO", to)) if not val]
+    mail_from = (os.environ.get("MAIL_FROM") or smtp_user).strip()
+    from_name = os.environ.get("MAIL_FROM_NAME", "").strip()
+    host = (os.environ.get("SMTP_HOST") or "smtp.gmail.com").strip()
+    port = int((os.environ.get("SMTP_PORT") or "465").strip() or "465")
+    missing = [
+        k
+        for k, val in (
+            ("GMAIL_USER/SMTP_USER", smtp_user),
+            ("GMAIL_APP_PASSWORD/SMTP_PASSWORD", pwd),
+            ("MAIL_TO", to),
+        )
+        if not val
+    ]
     if missing:
         return "skip:" + ",".join(missing)
     recipients = [x.strip() for x in to.split(",") if x.strip()]
     msg = MIMEMultipart("alternative")
     msg["Subject"] = str(Header(subject, "utf-8"))
-    msg["From"] = user
+    msg["From"] = formataddr((from_name, mail_from)) if from_name else mail_from
     msg["To"] = ", ".join(recipients)
     msg.attach(MIMEText(text_body, "plain", "utf-8"))
     msg.attach(MIMEText(html_body, "html", "utf-8"))
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=60) as s:
-        s.login(user, pwd.replace(" ", ""))
-        s.sendmail(user, recipients, msg.as_string())
+    with smtplib.SMTP_SSL(host, port, timeout=60) as s:
+        s.login(smtp_user, pwd.replace(" ", ""))
+        s.sendmail(smtp_user, recipients, msg.as_string())
     return "sent"
 
 

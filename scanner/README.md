@@ -25,8 +25,8 @@ SIVE.ST, ^OMX   # 瑞典股票，用 OMX 斯德哥尔摩 30 指数做基准
 
 ## 运行时间
 
-- 自动：**北京时间周二至周六 09:45**，由 Grok Bot 例程「观察池日报」触发：本机跑 `scanner/scan.py --no-email` 生成日报，再用 Grok Bot 原生邮箱 `lyatomic@mail.grokbot.com` 发到收件人 Gmail。不再用 GitHub Actions cron，也不再走 Gmail SMTP 发信。
-- 仓库里仍保留 `workflow_dispatch`（只生成 `scan.md`，不发信），需要时可以手动在 Actions 页点运行。
+- 自动：**北京时间周二至周六 09:45**，由 Grok Bot 例程「观察池日报」触发 GitHub Actions（`workflow_dispatch`）：跑 `scanner/scan.py`，经 Gmail SMTP 发信，并提交 `scan.md`。不再用 GitHub cron。
+- 也可在 Actions 页手动 **Run workflow**（需要重发时勾选 **force**）。
 
 ## 什么时候会跳过（不发信、不更新 scan.md）
 
@@ -48,17 +48,19 @@ SIVE.ST, ^OMX   # 瑞典股票，用 OMX 斯德哥尔摩 30 指数做基准
 
   ```bash
   pip install -r scanner/requirements.txt
-  python scanner/scan.py --no-email --force
+  python scanner/scan.py --force
+  # 只要文件：python scanner/scan.py --no-email --force
   ```
 
   `--force` 跳过上面的“休市/无新数据/已发过”检查。会生成 `scan.md` 和 `scanner/out/email.html`（邮件预览，不提交）。若在盘中运行，会自动丢弃当天未收盘的那根 K 线。
 
-## 发信方式（2026-10-10 起）
+## 发信方式
 
-- **发件人**：`lyatomic@mail.grokbot.com`（Grok Bot 原生邮箱，显示名「新想法」）
-- **收件人**：Yun Long 的 Gmail（不写进公开仓库）
-- 扫描脚本默认加 `--no-email`，只写 `scan.md` 和 `scanner/out/email.html`；真正发信由例程调用 Grok Bot 的 SendEmail。
-- 仓库里的 Gmail Secrets（`GMAIL_USER` / `GMAIL_APP_PASSWORD` / `MAIL_TO`）已不再用于日常发信，可保留作备用，也可删掉。
+- **发件人**：个人 Gmail（默认等于 `GMAIL_USER` / `SMTP_USER`；可用 `MAIL_FROM` 覆盖，可选 `MAIL_FROM_NAME`）
+- **收件人**：`MAIL_TO`（Secrets / 环境变量，不写进公开仓库）
+- **SMTP**：默认 `smtp.gmail.com:465`；可用 `SMTP_HOST` / `SMTP_PORT`；密码用 `GMAIL_APP_PASSWORD` 或 `SMTP_PASSWORD`
+- Actions 与本地只要配齐上述变量就会发信；只要文件可加 `--no-email`
+- GitHub Secrets：`GMAIL_USER`、`GMAIL_APP_PASSWORD`、`MAIL_TO`；可选 `MAIL_FROM`、`MAIL_FROM_NAME`
 
 ## 邮件样式
 
